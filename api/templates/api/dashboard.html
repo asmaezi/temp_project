@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Température & Humidité (DHT11)</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-light p-4">
+    <div class="container-fluid">
+        <h2 class="text-center mb-3 text-primary fw-bold">Dashboard Température & Humidité (DHT11)</h2>
+        <div class="text-center mb-4">
+            <a href="#" class="text-decoration-underline text-muted">Voir la page d'archives des incidents</a>
+        </div>
+
+        <!-- Ligne principale avec les 4 blocs -->
+        <div class="row g-3">
+
+            <!-- Bloc Température -->
+            <div class="col-md-3">
+                <div class="card shadow-sm border-primary h-100">
+                    <div class="card-header bg-primary text-white text-center fw-bold">Température</div>
+                    <div class="card-body text-center d-flex flex-column justify-content-between">
+                        <div>
+                            <h2 class="display-6 fw-bold text-primary my-3">
+                                {% if latest %}{{ latest.temperature }} °C{% else %}-- °C{% endif %}
+                            </h2>
+                            <p class="text-muted mb-1">
+                                ilya : <span class="badge bg-secondary">
+                                    {% if latest %}{{ latest.created_at|timesince }} ago{% else %}Aucune donnée{% endif %}
+                                </span>
+                            </p>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm mt-3" data-bs-toggle="modal" data-bs-target="#tempModal">Voir graphe température</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bloc Humidité -->
+            <div class="col-md-3">
+                <div class="card shadow-sm border-primary h-100">
+                    <div class="card-header bg-primary text-white text-center fw-bold">Humidité</div>
+                    <div class="card-body text-center d-flex flex-column justify-content-between">
+                        <div>
+                            <h2 class="display-6 fw-bold text-primary my-3">
+                                {% if latest %}{{ latest.humidity }} %{% else %}-- %{% endif %}
+                            </h2>
+                            <p class="text-muted mb-1">
+                                ilya : <span class="badge bg-secondary">
+                                    {% if latest %}{{ latest.created_at|timesince }} ago{% else %}Aucune donnée{% endif %}
+                                </span>
+                            </p>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm mt-3" data-bs-toggle="modal" data-bs-target="#humModal">Voir graphe humidité</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bloc Incidents -->
+<div class="col-md-3">
+    <div class="card shadow-sm border-primary h-100">
+        <div class="card-header bg-primary text-white text-center fw-bold">Incidents</div>
+        <div class="card-body d-flex flex-column justify-content-between">
+            <div>
+                <p class="fw-bold {{ status_color }} mb-1">{{ incident_status }}</p>
+                <p class="small text-muted mb-2">Température normale : 2°C ≤ T ≤ 8°C.</p>
+                <p class="small fw-bold mb-3">Compteur d'alertes : {{ alert_count }}</p>
+            </div>
+            <div>
+                <button class="btn btn-outline-primary btn-sm w-100 mb-2">Valider les commentaires</button>
+                <p class="small text-muted mb-2">Température normale : 20°C ≤ T ≤ 23°C.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+            <!-- Bloc Tester l'API (POST JSON) -->
+            <div class="col-md-3">
+                <div class="card shadow-sm border-primary h-100">
+                    <div class="card-header bg-primary text-white text-center fw-bold">Tester l'API (api/post)</div>
+                    <div class="card-body">
+                        <p class="small text-muted">Envoyer manuellement une mesure vers l'API (POST JSON).</p>
+                        <form method="POST" action="">
+                            {% csrf_token %}
+                            <div class="mb-2">
+                                <label class="small form-label mb-0">Température :</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" name="temperature" class="form-control" required>
+                                    <span class="input-group-text">°C</span>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="small form-label mb-0">Humidité :</label>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" name="humidity" class="form-control" required>
+                                    <span class="input-group-text">%</span>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-sm w-100">Envoyer vers l'api/post</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modale Graphique Température -->
+    <div class="modal fade" id="tempModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Historique de la Température</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <canvas id="tempChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modale Graphique Humidité -->
+    <div class="modal fade" id="humModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Historique de l'Humidité</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <canvas id="humChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS Bundle -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Scripts Chart.js -->
+    <script>
+        // Graphique Température
+        const ctxTemp = document.getElementById('tempChart').getContext('2d');
+        new Chart(ctxTemp, {
+            type: 'line',
+            data: {
+                labels: {{ labels|safe }},
+                datasets: [{
+                    label: 'Température (°C)',
+                    data: {{ temperatures|safe }},
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
+            }
+        });
+
+        // Graphique Humidité
+        const ctxHum = document.getElementById('humChart').getContext('2d');
+        new Chart(ctxHum, {
+            type: 'line',
+            data: {
+                labels: {{ labels|safe }},
+                datasets: [{
+                    label: 'Humidité (%)',
+                    data: {{ humidities|safe }},
+                    borderColor: '#198754',
+                    backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
+            }
+        });
+    </script>
+</body>
+</html>
