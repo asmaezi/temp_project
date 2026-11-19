@@ -178,5 +178,110 @@
             }
         });
     </script>
+<!-- Barre de filtre temporel dans la modale du graphe -->
+<div class="d-flex flex-wrap gap-2 align-items-end mb-3 p-2 bg-light rounded border">
+  <div>
+    <label for="startDate" class="form-label mb-1 small fw-bold">Date de début :</label>
+    <input type="datetime-local" id="startDate" class="form-control form-control-sm">
+  </div>
+  <div>
+    <label for="endDate" class="form-label mb-1 small fw-bold">Date de fin :</label>
+    <input type="datetime-local" id="endDate" class="form-control form-control-sm">
+  </div>
+  <button type="button" class="btn btn-primary btn-sm" onclick="chargerGraphe()">Filtrer</button>
+  <button type="button" class="btn btn-outline-secondary btn-sm" onclick="reinitialiserFiltre()">Tout afficher</button>
+</div>
+
+<!-- Résumé statistique de la période -->
+<div id="statsGraphe" class="mb-2 small text-muted fw-semibold"></div>
+
+<!-- Zone du graphique avec hauteur fixe bien structurée -->
+<div style="position: relative; height: 350px; width: 100%;">
+  <canvas id="tempChart"></canvas>
+</div>
+
+<script>
+let tempChartInstance = null;
+
+async function chargerGraphe() {
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+
+  const params = new URLSearchParams();
+  if (start) params.append('start', start);
+  if (end) params.append('end', end);
+
+  const response = await fetch(`/api/chart-data/?${params.toString()}`);
+  const data = await response.json();
+
+  // Calcul Min / Max / Moyenne pour enrichir l'affichage
+  if (data.temperatures.length > 0) {
+    const minT = Math.min(...data.temperatures).toFixed(1);
+    const maxT = Math.max(...data.temperatures).toFixed(1);
+    const avgT = (data.temperatures.reduce((a, b) => a + b, 0) / data.temperatures.length).toFixed(1);
+    document.getElementById('statsGraphe').innerText =
+      `Mesures affichées : ${data.temperatures.length} | Min : ${minT} °C | Max : ${maxT} °C | Moyenne : ${avgT} °C`;
+  } else {
+    document.getElementById('statsGraphe').innerText = "Aucune donnée trouvée pour cet intervalle.";
+  }
+
+  const ctx = document.getElementById('tempChart').getContext('2d');
+  if (tempChartInstance) {
+    tempChartInstance.destroy();
+  }
+
+  tempChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.labels,
+      datasets: [{
+        label: 'Température (°C)',
+        data: data.temperatures,
+        borderColor: '#0d6efd',
+        backgroundColor: 'rgba(13, 110, 253, 0.12)',
+        borderWidth: 2.5,
+        pointRadius: 3,
+        pointHoverRadius: 6,
+        fill: true,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` Température : ${ctx.parsed.y} °C`
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'Date et Heure' },
+          ticks: { maxRotation: 45, minRotation: 30, autoSkip: true, maxTicksLimit: 12 }
+        },
+        y: {
+          title: { display: true, text: 'Température (°C)' },
+          suggestedMin: 15,
+          suggestedMax: 35,
+          grid: { color: 'rgba(0,0,0,0.06)' }
+        }
+      }
+    }
+  });
+}
+
+function reinitialiserFiltre() {
+  document.getElementById('startDate').value = '';
+  document.getElementById('endDate').value = '';
+  chargerGraphe();
+}
+
+// Charger le graphe automatiquement à l'ouverture de la modale ou de la page
+document.addEventListener('DOMContentLoaded', chargerGraphe);
+</script>
 </body>
 </html>

@@ -1,82 +1,34 @@
-import json
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.shortcuts import render
-from django.core.mail import send_mail
+from django.utils.dateparse import parse_datetime, parse_date
 from .models import SensorData
 
+def get_chart_data(request):
+    start_str = request.GET.get('start')  # ex: "2026-11-19T08:00" ou "2026-11-19"
+    end_str = request.GET.get('end')      # ex: "2026-11-19T18:00" ou "2026-11-19"
 
-@csrf_exempt
-def receive_sensor_data(request):
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body.decode('utf-8'))
-            temp = data.get('temperature')
-            hum = data.get('humidity')
+    queryset = SensorData.objects.all().order_by('created_at')  # Remplace 'created_at' par le nom exact de ton champ date
 
-            if temp is not None and hum is not None:
-                temperature = float(temp)
-                humidity = float(hum)
+    if start_str:
+        dt_start = parse_datetime(start_str)
+        if dt_start:
+            queryset = queryset.filter(created_at__gte=dt_start)
+        elif parse_date(start_str):
+            queryset = queryset.filter(created_at__date__gte=parse_date(start_str))
 
-                # Enregistrer la mesure dans la base de données
-                SensorData.objects.create(temperature=temperature, humidity=humidity)
+    if end_str:
+        dt_end = parse_datetime(end_str)
+        if dt_end:
+            queryset = queryset.filter(created_at__lte=dt_end)
+        elif parse_date(end_str):
+            queryset = queryset.filter(created_at__date__lte=parse_date(end_str))
 
-                # VÉRIFICATION DE L'INTERVALLE (Ex: Alerte si < 20°C ou > 23°C)
-                if temperature < 20.0 or temperature > 23.0:
-                    sujet = "🚨 ALERTE LABO : Température anormale !"
-                    message = (
-                        f"Attention !\n\n"
-                        f"La température actuelle est de {temperature} °C, "
-                        f"ce qui dépasse l'intervalle sécurisé (20°C - 23°C).\n"
-                        f"Veuillez intervenir d'urgence !"
-                    )
-                    destinataire = ['asmaezinerotaracteheio@gmail.com']  # Ton email
+    # Si aucun filtre n'est choisi, on limite aux 50 dernières mesures pour garder le graphe lisible
+    if not start_str and not end_str:
+        queryset = list(queryset)[-50:]
 
-                    try:
-                        send_mail(sujet, message, None, destinataire, fail_silently=False)
-                    except Exception as mail_err:
-                        print(f"Erreur d'envoi d'email : {mail_err}")
-
-                return JsonResponse({'status': 'success', 'message': 'Données enregistrées !'}, status=200)
-            else:
-                return JsonResponse({'status': 'error', 'message': 'Champs manquants'}, status=400)
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
-    return JsonResponse({'status': 'error', 'message': 'Méthode non autorisée'}, status=405)
-
-
-def display_data(request):
-    records = SensorData.objects.all().order_by('-created_at')
-    latest = records.first()
-
-    # Calculer le nombre d'alertes (température hors normes)
-    alert_count = sum(1 for r in records if r.temperature < 20.0 or r.temperature > 23.0)
-
-    # Déterminer le statut des incidents pour le bloc du milieu
-    if latest:
-        if 20.0 <= latest.temperature <= 23.0:
-            incident_status = "Pas d'incident"
-            status_color = "text-success"
-        else:
-            incident_status = "ALERTE : Seuil dépassé !"
-            status_color = "text-danger"
-    else:
-        incident_status = "Aucune donnée"
-        status_color = "text-muted"
-
-    records_sorted = list(reversed(records[:20]))
-    labels = [r.created_at.strftime('%H:%M:%S') for r in records_sorted]
-    temperatures = [float(r.temperature) for r in records_sorted]
-    humidities = [float(r.humidity) for r in records_sorted]
-
-    context = {
-        'records': records[:20],
-        'latest': latest,
-        'alert_count': alert_count,
-        'incident_status': incident_status,
-        'status_color': status_color,
-        'labels': labels,
-        'temperatures': temperatures,
-        'humidities': humidities,
+    data = {
+        'labels': [obj.created_at.strftime('%d/%m %H:%M') for obj in queryset],
+        'temperatures': [obj.temperature for obj in queryset],
+        'humidities': [obj.humidity for obj in queryset],
     }
-    return render(request, 'api/dashboard.html', context)
+    return JsonResponse(data)
